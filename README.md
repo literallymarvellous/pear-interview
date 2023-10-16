@@ -51,8 +51,3 @@ Things will be looking at:
 - Api practices eg. code versioning, status code usage etc.
 
 You'll be filling a few blank spaces in terms of functions & utility. Codebase should be clean & production-esque as possible.
-
-## Submission & Issues
-
-Create a PR with your deployed api link & github repo.
-Feel free to open an issue if certain information is missing or for any errors.
