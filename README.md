@@ -1,6 +1,6 @@
 ## Task
 
-Setup a nodejs backend with a single endpoint that fetches position trade data for a given user address
+Setup a nodejs backend with a single endpoint that fetches position trade data for a given user address.
 
 ### API endpoint
 
@@ -10,26 +10,7 @@ Endpoint naimg & query parameters is left upto your discretion.
 
 ## Return data type
 
-`type PrePosition = {
-  positionId: string;
-  contractKey: string;
-  adapter: string;
-  adapterKey: string;
-  collateralToken: TokenInfo;
-  indexToken: TokenInfo;
-  isLong: boolean;
-  size: bigint;
-  collateral: bigint;
-  averagePrice: bigint;
-  entryFundingRate: bigint;
-  cumulativeFundingRate: bigint;
-  hasRealisedProfit: bigint;
-  realisedPnl: bigint;
-  lastIncreasedTime: bigint;
-  hasProfit: boolean;
-  delta: bigint;
-  markPrice; biting;
-}`
+The endpoint should return the `Position[]` type in the types.ts file.å
 
 ## Required data
 
@@ -38,7 +19,7 @@ The gmxfactory contract holding necessary functions for this is also included th
 
 ## Helpful resources
 
-The utils folder contains neccessary info to aid the data fetching process.
+The utils folder contains files with neccessary functions, addresses & info to aid the data fetching process.
 The functions in utils are functions used in the frontend(react) & will need to be refactored to accomodate use in nodejs(typescript)
 
 Helpful link
@@ -49,6 +30,10 @@ https://github.com/gmx-io/gmx-interface/blob/c9ada749522671d65db8832f8398e13dede
 - tokenBalances - `getTokenBalances` in Reader contract
 - fundingRate - `getFundingRates` in Reader contract
 - tokenInfo - `getVaultTokenInfoV4` to VaultReader contract
+
+## Testing Contract
+
+GmxFactory contract isn't verified so, make use of https://remix.ethereum.org/.
 
 ## Stack
 

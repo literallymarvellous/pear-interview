@@ -1,17 +1,167 @@
-import { DEFAULT_MAX_USDG_AMOUNT } from "./contants";
-import { InfoTokens, Token, TokenInfo } from "./types";
+import { BASIS_POINTS_DIVISOR, DEFAULT_MAX_USDG_AMOUNT, FUNDING_RATE_PRECISION, MARGIN_FEE_BASIS_POINTS, PRECISION, USD_DECIMALS } from "./contants";
+import { formatAmount, limitDecimals, numberWithCommas, padDecimals } from "./numbers";
+import { InfoTokens, Position, Token, TokenInfo } from "./types";
 
-const AddressZero = "0x"; // fix 
+const AddressZero = "0x"; // change
 
-export function expandDecimals(n: bigint, decimals: number) {
-  const bn = BigInt(n);
-  const exp = BigInt(10) ** BigInt(decimals);
-  return bn * exp;
-}
 
 export function getSpread(p: { minPrice: bigint; maxPrice: bigint }): bigint {
   const diff = p.maxPrice - p.minPrice;
   return bigintMulDiv(diff, PRECISION, bigintDiv(p.maxPrice + p.minPrice, 2));
+}
+
+export function getDeltaStr({
+  delta,
+  deltaPercentage,
+  hasProfit,
+}: {
+  delta: bigint;
+  deltaPercentage: bigint;
+  hasProfit: boolean;
+}) {
+  let deltaStr;
+  let deltaPercentageStr;
+
+  if (delta > 0) {
+    deltaStr = hasProfit ? '+' : '-';
+    deltaPercentageStr = hasProfit ? '+' : '-';
+  } else {
+    deltaStr = '';
+    deltaPercentageStr = '';
+  }
+  deltaStr += `$${formatAmount(delta, USD_DECIMALS, 2, true)}`;
+  deltaPercentageStr += `${formatAmount(deltaPercentage, 2, 2)}%`;
+
+  return { deltaStr, deltaPercentageStr };
+}
+
+export function getLeverage({
+  size,
+  sizeDelta,
+  increaseSize,
+  collateral,
+  collateralDelta,
+  increaseCollateral,
+  entryFundingRate,
+  cumulativeFundingRate,
+  hasProfit,
+  delta,
+  includeDelta,
+}: {
+  size: bigint;
+  sizeDelta?: bigint;
+  increaseSize?: boolean;
+  collateral: bigint;
+  collateralDelta?: bigint;
+  increaseCollateral?: boolean;
+  entryFundingRate: bigint;
+  cumulativeFundingRate?: bigint;
+  hasProfit: boolean;
+  delta: bigint;
+  includeDelta: boolean;
+}) {
+  if (!size && !sizeDelta) {
+    return;
+  }
+  if (!collateral && !collateralDelta) {
+    return;
+  }
+
+  let nextSize = size ? size : BigInt(0);
+  if (sizeDelta) {
+    if (increaseSize) {
+      nextSize = size + sizeDelta;
+    } else {
+      if (sizeDelta >= size) {
+        return;
+      }
+      nextSize = size - sizeDelta;
+    }
+  }
+
+  let remainingCollateral = collateral ? collateral : BigInt(0);
+  if (collateralDelta) {
+    if (increaseCollateral) {
+      remainingCollateral = collateral + collateralDelta;
+    } else {
+      if (collateralDelta >= collateral) {
+        return;
+      }
+      remainingCollateral = collateral - collateralDelta;
+    }
+  }
+
+  if (delta && includeDelta) {
+    if (hasProfit) {
+      remainingCollateral = remainingCollateral + delta;
+    } else {
+      if (delta > remainingCollateral) {
+        return;
+      }
+
+      remainingCollateral = remainingCollateral - delta;
+    }
+  }
+
+  if (remainingCollateral === BigInt(0)) {
+    return;
+  }
+
+  remainingCollateral = sizeDelta
+    ? bigintDiv(
+      bigintMul(
+        remainingCollateral,
+        BASIS_POINTS_DIVISOR - MARGIN_FEE_BASIS_POINTS,
+      ),
+      BASIS_POINTS_DIVISOR,
+    )
+    : remainingCollateral;
+  if (entryFundingRate && cumulativeFundingRate) {
+    const fundingFee = bigintDiv(
+      bigintMul(size, cumulativeFundingRate - entryFundingRate),
+      FUNDING_RATE_PRECISION,
+    );
+    remainingCollateral = remainingCollateral - fundingFee;
+  }
+
+  return bigintMulDiv(nextSize, BASIS_POINTS_DIVISOR, remainingCollateral);
+}
+
+export function getLeverageStr(leverage: bigint | undefined) {
+  if (leverage) {
+    if (leverage < 0) {
+      return '> 100x';
+    }
+    return `${formatAmount(leverage, 4, 2, true)}x`;
+  }
+}
+
+
+export function getPositionKeyWithAdapter(
+  account: string,
+  collateralTokenAddress: string,
+  indexTokenAddress: string,
+  adapter: string,
+  isLong: boolean,
+  nativeTokenAddress?: string,
+) {
+  const tokenAddress0 =
+    collateralTokenAddress === AddressZero
+      ? nativeTokenAddress
+      : collateralTokenAddress;
+  const tokenAddress1 =
+    indexTokenAddress === AddressZero ? nativeTokenAddress : indexTokenAddress;
+  return (
+    account +
+    ':' +
+    adapter +
+    ':' +
+    tokenAddress0 +
+    ':' +
+    tokenAddress1 +
+    ':' +
+    isLong
+  );
 }
 
 export function getTokenInfo(
@@ -27,6 +177,216 @@ export function getTokenInfo(
   return infoTokens[tokenAddress];
 }
 
+export function getPositionContractKey(
+  account: string,
+  collateralToken: string,
+  indexToken: string,
+  isLong: boolean,
+) {
+  return ethers.utils.solidityKeccak256(
+    ['address', 'address', 'address', 'bool'],
+    [account, collateralToken, indexToken, isLong],
+  );
+}
+
+export function getPositionKey(
+  account: string,
+  collateralTokenAddress: string,
+  indexTokenAddress: string,
+  isLong: boolean,
+  nativeTokenAddress?: string,
+) {
+  const tokenAddress0 =
+    collateralTokenAddress === AddressZero
+      ? nativeTokenAddress
+      : collateralTokenAddress;
+  const tokenAddress1 =
+    indexTokenAddress === AddressZero ? nativeTokenAddress : indexTokenAddress;
+  return account + ':' + tokenAddress0 + ':' + tokenAddress1 + ':' + isLong;
+}
+
+export function getFundingFee(data: {
+  size: bigint;
+  entryFundingRate?: bigint;
+  cumulativeFundingRate?: bigint;
+}) {
+  let { entryFundingRate, cumulativeFundingRate, size } = data;
+
+  if (entryFundingRate && cumulativeFundingRate) {
+    return bigintMulDiv(
+      size,
+      cumulativeFundingRate - entryFundingRate,
+      FUNDING_RATE_PRECISION,
+    );
+  }
+
+  return;
+}
+
+
+export const derivePositions = (
+  positions: Position[],
+  account: string,
+  chainId: number,
+  showPnlAfterFees: boolean,
+  includeDelta: boolean
+) => {
+  let derivedPositions: Position[] = [];
+
+  const positionsMap: Record<string, Position> = {};
+
+  for (let i = 0; i < positions.length; i++) {
+    let position = positions[i];
+    const key = getPositionKey(
+      account,
+      position.collateralToken.address,
+      position.indexToken.address,
+      position.isLong,
+      getContract(chainId, 'NATIVE_TOKEN'),
+    );
+
+    const adapterKey = getPositionKeyWithAdapter(
+      account,
+      position.collateralToken.address,
+      position.indexToken.address,
+      position.adapter,
+      position.isLong,
+      getContract(chainId, 'NATIVE_TOKEN'),
+    );
+
+    position.key = key;
+    position.adapterKey = adapterKey;
+
+    let fundingFee = getFundingFee(position);
+    position.fundingFee = fundingFee ? fundingFee : BigInt(0);
+    position.collateralAfterFee = position.fundingFee
+      ? position.collateral - position.fundingFee
+      : position.collateral;
+
+    position.closingFee = bigintMulDiv(
+      position.size,
+      MARGIN_FEE_BASIS_POINTS,
+      BASIS_POINTS_DIVISOR,
+    );
+    position.positionFee = bigintMulDiv(
+      bigintMul(position.size, MARGIN_FEE_BASIS_POINTS),
+      2,
+      BASIS_POINTS_DIVISOR,
+    );
+    position.totalFees = position.fundingFee
+      ? position.positionFee + position.fundingFee
+      : position.positionFee;
+
+    position.pendingDelta = position.delta;
+
+    if (position.collateral > 0) {
+      position.hasLowCollateral =
+        position.collateralAfterFee < 0 ||
+        bigintDiv(position.size, bigintAbs(position.collateralAfterFee)) > 50;
+
+      if (position.averagePrice && position.markPrice) {
+        const priceDelta =
+          position.averagePrice > position.markPrice
+            ? position.averagePrice - position.markPrice
+            : position.markPrice - position.averagePrice;
+        position.pendingDelta =
+          (position.size * priceDelta) / position.averagePrice;
+
+        position.delta = position.pendingDelta;
+
+        if (position.isLong) {
+          position.hasProfit = position.markPrice >= position.averagePrice;
+        } else {
+          position.hasProfit = position.markPrice <= position.averagePrice;
+        }
+      }
+
+      position.deltaPercentage = bigintMulDiv(
+        position.pendingDelta,
+        BASIS_POINTS_DIVISOR,
+        position.collateral,
+      );
+
+      const { deltaStr, deltaPercentageStr } = getDeltaStr({
+        delta: position.pendingDelta,
+        deltaPercentage: position.deltaPercentage,
+        hasProfit: position.hasProfit,
+      });
+
+      position.deltaStr = deltaStr;
+      position.deltaPercentageStr = deltaPercentageStr;
+      position.deltaBeforeFeesStr = deltaStr;
+
+      let hasProfitAfterFees;
+      let pendingDeltaAfterFees;
+
+      if (position.hasProfit) {
+        if (position.pendingDelta > position.totalFees) {
+          hasProfitAfterFees = true;
+          pendingDeltaAfterFees = position.pendingDelta - position.totalFees;
+        } else {
+          hasProfitAfterFees = false;
+          pendingDeltaAfterFees = position.totalFees - position.pendingDelta;
+        }
+      } else {
+        hasProfitAfterFees = false;
+        pendingDeltaAfterFees = position.pendingDelta + position.totalFees;
+      }
+
+      position.hasProfitAfterFees = hasProfitAfterFees;
+      position.pendingDeltaAfterFees = pendingDeltaAfterFees;
+      // while calculating delta percentage after fees, we need to add opening fee (which is equal to closing fee) to collateral
+      position.deltaPercentageAfterFees = bigintMulDiv(
+        position.pendingDeltaAfterFees,
+        BASIS_POINTS_DIVISOR,
+        position.collateral + position.closingFee,
+      );
+
+      const {
+        deltaStr: deltaAfterFeesStr,
+        deltaPercentageStr: deltaAfterFeesPercentageStr,
+      } = getDeltaStr({
+        delta: position.pendingDeltaAfterFees,
+        deltaPercentage: position.deltaPercentageAfterFees,
+        hasProfit: hasProfitAfterFees,
+      });
+
+      position.deltaAfterFeesStr = deltaAfterFeesStr;
+      position.deltaAfterFeesPercentageStr = deltaAfterFeesPercentageStr;
+
+      if (showPnlAfterFees) {
+        position.deltaStr = position.deltaAfterFeesStr;
+        position.deltaPercentageStr = position.deltaAfterFeesPercentageStr;
+      }
+
+      let netValue = position.hasProfit
+        ? position.collateral + position.pendingDelta
+        : position.collateral - position.pendingDelta;
+
+      netValue = position.fundingFee
+        ? netValue - position.fundingFee - position.closingFee
+        : netValue;
+      position.netValue = netValue;
+    }
+
+    position.leverage = getLeverage({
+      size: position.size,
+      collateral: position.collateral,
+      entryFundingRate: position.entryFundingRate,
+      cumulativeFundingRate: position.cumulativeFundingRate,
+      hasProfit: position.hasProfit,
+      delta: position.delta,
+      includeDelta,
+    });
+    position.leverageStr = getLeverageStr(position.leverage);
+
+    derivedPositions.push(position);
+    positionsMap[adapterKey] = position;
+  }
+
+  return { derivedPositions, positionsMap };
+};
+
 export const useGetPositions = (
   account: string,
   infoTokens: InfoTokens,
@@ -37,13 +397,9 @@ export const useGetPositions = (
 
   const { data: positionsCount, refetch: positionsCountRefetch } =
     useReadPositionsCount(account);
-  useInterval(positionsCountRefetch, REFRESH_RATE.veryFast);
-
-  // console.log("p count", positionsCount)
 
   const { data: positionsIds, refetch: positionsIdsRefetch } =
     useReadPositionsIds(account, positionsCount);
-  useInterval(positionsIdsRefetch, REFRESH_RATE.veryFast);
 
   const { data: positionsAdapters, refetch: positionsAdaptersRefetch } =
     useReadPositionsAdapters(positionsIds, positionsCount);
@@ -120,16 +476,9 @@ export const useGetPositions = (
     showlPnlAfterFees,
     isPnlInLeverage,
   );
-  const positionKeys = derivedPositions.map(
-    (positions) => positions.contractKey,
-  );
 
   return {
     positions: derivedPositions,
-    positionKeys: positionKeys as `0x${string}`[],
-    positionsIds: positionsIds as `0x${string}`[],
-    positionsAdapters: positionsAdapters as `0x${string}`[],
-    positionsMap,
   };
 };
 

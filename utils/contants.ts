@@ -1,4 +1,4 @@
-import { expandDecimals } from "./utils";
+import { expandDecimals } from "./numbers";
 
 const serverUrl = 'https://gmx-server-mainnet.uw.r.appspot.com'
 
@@ -22,8 +22,6 @@ const address = {
     NFT_HANDLER: '0x15aF6099951BF6E21C4B234392D59C1930531DE0',
   },
 }
-
-export const DEFAULT_MAX_USDG_AMOUNT = expandDecimals(200 * 1000 * 1000, 18);
 
 // whitelisted tokens
 export const TOKENS = {
@@ -125,3 +123,47 @@ export const TOKENS = {
     },
   ],
 };
+
+// use a random placeholder account instead of the zero address as the zero address might have tokens
+export const PLACEHOLDER_ACCOUNT = ethers.Wallet.createRandom().address;
+
+export const MIN_PROFIT_TIME = 0;
+
+export const USDG_ADDRESS = getContract(CHAIN_ID, 'USDG');
+
+export const BASIS_POINTS_DIVISOR = 10000;
+export const MAX_LEVERAGE = 100 * BASIS_POINTS_DIVISOR;
+export const MAX_ALLOWED_LEVERAGE = 50 * BASIS_POINTS_DIVISOR;
+
+export const MAX_PRICE_DEVIATION_BASIS_POINTS = 750;
+export const DEFAULT_GAS_LIMIT = 1 * 1000 * 1000;
+export const SECONDS_PER_YEAR = 31536000;
+export const USDG_DECIMALS = 18;
+export const USD_DECIMALS = 30;
+export const DEPOSIT_FEE = 30;
+export const DUST_BNB = '2000000000000000';
+export const DUST_USD = expandDecimals(1, USD_DECIMALS);
+export const PRECISION = expandDecimals(1, 30);
+export const GLP_DECIMALS = 18;
+export const GMX_DECIMALS = 18;
+export const DEFAULT_MAX_USDG_AMOUNT = expandDecimals(200 * 1000 * 1000, 18);
+
+export const TAX_BASIS_POINTS = 60;
+export const STABLE_TAX_BASIS_POINTS = 5;
+export const MINT_BURN_FEE_BASIS_POINTS = 25;
+export const SWAP_FEE_BASIS_POINTS = 25;
+export const STABLE_SWAP_FEE_BASIS_POINTS = 1;
+export const MARGIN_FEE_BASIS_POINTS = 10;
+
+export const LIQUIDATION_FEE = expandDecimals(5, USD_DECIMALS);
+
+export const TRADES_PAGE_SIZE = 100;
+
+export const GLP_COOLDOWN_DURATION = 0;
+export const THRESHOLD_REDEMPTION_VALUE = expandDecimals(993, 27); // 0.993
+export const FUNDING_RATE_PRECISION = 1000000;
+
+export const DEFAULT_SLIPPAGE_AMOUNT = 30;
+export const DEFAULT_HIGHER_SLIPPAGE_AMOUNT = 100;
+
+export const MIN_PROFIT_BIPS = 0;

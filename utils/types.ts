@@ -64,3 +64,44 @@ export type TokenInfo = Token & {
 export type InfoTokens = {
   [key: string]: TokenInfo;
 };
+
+export type Position = {
+  positionId: string;
+  contractKey: string;
+  adapter: string;
+  key: string;
+  adapterKey: string;
+  collateralToken: TokenInfo;
+  indexToken: TokenInfo;
+  isLong: boolean;
+  size: bigint;
+  collateral: bigint;
+  averagePrice: bigint;
+  entryFundingRate: bigint;
+  hasRealisedProfit: bigint;
+  realisedPnl: bigint;
+  lastIncreasedTime: bigint;
+  hasProfit: boolean;
+  delta: bigint;
+  fundingFee?: bigint;
+  collateralAfterFee: bigint;
+  closingFee: bigint;
+  positionFee: bigint;
+  totalFees: bigint;
+  pendingDelta: bigint;
+  hasLowCollateral?: Boolean;
+  markPrice?: bigint;
+  deltaPercentage?: bigint;
+  deltaBeforeFeesStr?: String;
+  deltaPercentageStr?: String;
+  deltaStr?: String;
+  hasProfitAfterFees?: Boolean;
+  pendingDeltaAfterFees?: bigint;
+  deltaPercentageAfterFees?: bigint;
+  deltaAfterFeesStr?: String;
+  deltaAfterFeesPercentageStr?: String;
+  netValue?: bigint;
+  leverage?: bigint;
+  leverageStr?: String;
+  cumulativeFundingRate?: bigint;
+};
